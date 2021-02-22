@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 <table>
 <tr>
 <td><img src="https://github.com/Malwprotector/themis/blob/main/themis.jpg?raw=true" width="250"></td>
