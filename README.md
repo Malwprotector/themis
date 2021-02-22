@@ -23,7 +23,6 @@ $
 
 </tr>
 </table>
->>>>>>> f9e167c (add cli)
 
 # Thémis
 
