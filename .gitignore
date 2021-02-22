@@ -78,7 +78,7 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Jupyter notebooks checkpoints, if used later
+# Jupyter notebooks checkpoints, if used later 
 .ipynb_checkpoints/
 
 # Temporary files

@@ -1,3 +1,4 @@
+#cli
 import argparse
 from .scanner import build_plan, write_csv, read_csv, apply_plan
 

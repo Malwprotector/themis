@@ -1,3 +1,4 @@
+#gui
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from .scanner import build_plan, apply_plan

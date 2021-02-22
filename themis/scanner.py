@@ -1,3 +1,4 @@
+#scan
 import re, csv, json, shutil, datetime
 from dataclasses import dataclass, asdict
 from pathlib import Path
