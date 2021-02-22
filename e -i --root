@@ -1,0 +1,53 @@
+[33mcommit f9e167cf99e4bd51958ef26079357d393adf5ab1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Tue Feb 23 00:27:00 2021 +0100
+
+    add cli
+
+[33mcommit 5f7c8b5c8bdf5ce96541621c3264dec5dfcca609[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Tue Feb 23 00:19:00 2021 +0100
+
+    added themis
+
+[33mcommit 339b6d0b9922038e7b5dc046e987047ff87db692[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Tue Feb 23 00:17:00 2021 +0100
+
+    added copyright disclaimer
+
+[33mcommit 2534618059e0cc1380c98bc05298302a6a020f91[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Mon Feb 22 23:45:00 2021 +0100
+
+    AGPL license
+
+[33mcommit 62efa47051fd91c0d9d5e457a0119af69e83795f[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Mon Feb 22 23:45:00 2021 +0100
+
+    AGPL
+
+[33mcommit 3f8334398864381d3bfa263ce64d2601431cc1f4[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Mon Feb 22 23:45:00 2021 +0100
+
+    initial themits commit (feb)
+
+[33mcommit b2b8db659ef979b8b91664a98e9ac9a6357b2ac8[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Mon Feb 22 23:45:00 2021 +0100
+
+    initial commit (feb)
+
+[33mcommit 756c9aa1660878adbdd61314f77ba2ba1cbea8d1[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Sat May 23 00:09:47 2026 +0200
+
+    Initial release (feb)
+
+[33mcommit 1fe4b989d16775e83bee914d31a8e68851b8263a[m
+Author: Malwprotector <92603563+Malwprotector@users.noreply.github.com>
+Date:   Sat May 23 00:03:52 2026 +0200
+
+    Initial AGPL release of Thémis

@@ -1,3 +1,31 @@
+<<<<<<< HEAD
+=======
+<table>
+<tr>
+<td><img src="https://github.com/Malwprotector/themis/blob/main/themis.jpg?raw=true" width="250"></td>
+
+<td style="vertical-align: top; font-size:12px;">
+<pre style="margin:0; white-space: pre-wrap;">
+$ python3 -m themis --help
+usage: themis [-h] {gui,scan,apply} ...
+
+Thémis - file sorting assistant based on filename topics
+
+positional arguments:
+  {gui,scan,apply}
+    gui             open graphical interface
+    scan            scan folders and create a proposed sorting plan
+    apply           apply a reviewed CSV plan
+
+options:
+  -h, --help        show this help message and exit
+$
+</pre>
+</td>
+
+</tr>
+</table>
+>>>>>>> f9e167c (add cli)
 
 # Thémis
 
