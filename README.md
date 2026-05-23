@@ -36,6 +36,17 @@ https://github.com/user-attachments/assets/44b5669c-3250-43cf-8b42-4c517721a8e5
 
 
 
+## Contents
+
+- [Status](#project-status-at-a-glance)
+- [Features](#what-themis-does)
+- [Workflow](#core-workflow)
+- [Install](#installation-from-source)
+- [Usage](#gui-usage-tutorial)
+- [CLI](#cli-usage-tutorial)
+- [Build](#build-and-compile-guide)
+- [License](#license)
+
 ---
 
 ## Project Status At A Glance
