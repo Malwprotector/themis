@@ -326,6 +326,7 @@ Thémis/
   README.md
   run_themis.py
   create.cpp
+  tte.cpp
   themis/
     __init__.py
     cli.py
@@ -344,6 +345,11 @@ g++ create.cpp -o chaos -std=c++17
 
 ```bash
 g++ tte.cpp -o chaos -std=c++17
+```
+>Note³ : The C++ Rollback Engine (`rollback.cpp`) restores files moved by Themis by reading the local themis_history.jsonl file. It checks each recorded move, processes the history in reverse order, and moves files back from their destination to their original source path. By default, it runs in dry-run mode for safety, so users can preview the rollback before applying it with --apply.
+
+```bash
+g++ rollback.cpp -o chaos -std=c++17
 ```
 
 
