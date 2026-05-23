@@ -1,3 +1,8 @@
+
+### Legal Risk Warning
+
+**Failure to comply with the AGPL may expose you or your organization to legal claims.**
+
 ## AGPL License Notice
 
 This project is released under the **GNU Affero General Public License v3.0 or later**.
@@ -42,11 +47,7 @@ You must not:
 - relicense the project under a proprietary license without proper authorization from the copyright holders;
 - claim that your modified version is the official version unless you are authorized to do so.
 
-### Legal Risk Warning
-
-**Failure to comply with the AGPL may expose you or your organization to legal claims.**
-
-This README is not legal advice. If you plan to integrate Thémis into a commercial product, SaaS platform, internal enterprise tool, or redistributed package, consult a qualified legal professional before doing so.
+This code of conduct is not legal advice. If you plan to integrate Thémis into a commercial product, SaaS platform, internal enterprise tool, or redistributed package, consult a qualified legal professional before doing so.
 
 ## Disclaimer
 
