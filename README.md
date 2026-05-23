@@ -7,17 +7,17 @@
 $ python3 -m themis --help
 usage: themis [-h] {gui,scan,apply,categories} ...
 
-Themis 2.1 - guided file sorting assistant using locally trained algorithm.
+Themis 2.1
 
 positional arguments:
   {gui,scan,apply,categories}
-    gui                 open the graphical interface
-    scan                scan folders and create a proposed sorting plan
-    apply               apply a reviewed CSV plan and update Bayes training history
-    categories          list categories already learned from approved history
+    gui              open the graphical interface
+    scan             scan folders and create plan
+    apply            apply CSV and update training
+    categories       list categories already learned
 
 options:
-  -h, --help            show this help message and exit
+  -h, --help         show this help message and exit
 $
 </pre>
 </td>
