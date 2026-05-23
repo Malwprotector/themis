@@ -334,11 +334,18 @@ Thémis/
     scanner.py
 ```
 
-> Note: `create.cpp` is a C++ program used to simulate a chaotic file structure. To change the number of generated files, edit the value in `for (int i = 0; i < 100; i++) {`. You can compile it on Linux with:
+> Note : `create.cpp` is a C++ program used to simulate a chaotic file structure. To change the number of generated files, edit the value in `for (int i = 0; i < 100; i++) {`. You can compile it on Linux with:
 
 ```bash
 g++ create.cpp -o chaos -std=c++17
 ```
+
+>Note² : The C++ Tree Exporter (`tte.cpp`) is especially useful for old hard drives because it can create a local inventory of the disk without reading full file contents or moving anything. It scans the folder tree, records paths and basic metadata into a CSV file, and lets Themis or the user review the structure safely before sorting, cleaning, or migrating data.
+
+```bash
+g++ tte.cpp -o chaos -std=c++17
+```
+
 
 ### `run_themis.py`
 
