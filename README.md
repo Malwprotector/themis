@@ -351,6 +351,18 @@ g++ tte.cpp -o chaos -std=c++17
 g++ rollback.cpp -o chaos -std=c++17
 ```
 
+> Note⁴: The C++ Safe Move Validator (`safe_move_validator.cpp`) checks a Themis CSV plan before files are moved. It validates sources, destinations, duplicate targets, missing files, invalid parents, long paths, and other risky cases. It does not move or modify files; it only reports warnings and errors.
+
+```bash
+g++ safe_move_validator.cpp -o safe-move-validator -std=c++17 -O2
+```
+
+> Note⁵: The C++ Clean tool (`clean_duplicates.cpp`) combines an empty-folder scanner with a duplicate-file candidate detector. Empty folder removal is dry-run by default and only happens with `--apply-empty-clean`; duplicate detection never deletes files. It can produce CSV reports for empty folders and duplicate groups.
+
+```bash
+g++ clean_duplicates.cpp -o clean-duplicates -std=c++17 -O2
+```
+
 
 ### `run_themis.py`
 
