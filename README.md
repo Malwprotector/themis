@@ -515,6 +515,8 @@ python -m themis --help
 
 ## GUI Usage Tutorial
 
+>Again, this doesn't show new 2.1 version features.
+
 ![Demo](overview.gif)
 
 ### Step 1: Start The Application
