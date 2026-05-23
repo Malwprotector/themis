@@ -32,6 +32,8 @@ Thémis is a cross-platform Python application that helps users reorganize files
 
 The application can be used either with a graphical interface or from the command line.
 
+![Demo](overview.gif)
+
 ---
 
 ## Project Status At A Glance

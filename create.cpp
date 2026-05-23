@@ -71,7 +71,7 @@ int main() {
         folders.push_back(newDir);
     }
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 50; i++) {
         fs::path folder = folders[randInt(0, folders.size() - 1)];
         std::string ext = randomExtension();
         fs::path filePath = folder / (randomName() + ext);
