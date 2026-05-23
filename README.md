@@ -391,6 +391,8 @@ python -m themis --help
 
 ## GUI Usage Tutorial
 
+![Demo](overview.gif)
+
 ### Step 1: Start The Application
 
 ```bash
