@@ -62,7 +62,7 @@ The name was chosen because the software’s purpose is to restore order in chao
 
 ---
 
-## /!\ Strict AGPL License Notice /!\
+## /!\ AGPL License Notice /!\
 
 This project is released under the **GNU Affero General Public License v3.0 or later**.
 
