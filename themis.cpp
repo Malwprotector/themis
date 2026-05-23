@@ -1,133 +1,134 @@
-#include <windows.h>
-#include <commdlg.h>
+// themis_full_tui.cpp
+// Single-file C++17 terminal UI version of Themis.
+//
+// Implements the same core workflow as the Python version:
+// - scan folders
+// - tokenize filenames
+// - LDA discovery model with Gibbs sampling
+// - local Multinomial Naive Bayes trained from themis_history.jsonl
+// - Bayes overrides LDA only when trained and confident
+// - editable category plan
+// - CSV export/import
+// - apply selected moves and update local Bayes history
+//
+// Build:
+//   g++ themis_full_tui.cpp -o themis-tui -std=c++17 -O2
+//
+// Run:
+//   ./themis-tui
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <filesystem>
-#include <vector>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <random>
+#include <regex>
+#include <set>
+#include <sstream>
+#include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace fs = std::filesystem;
+static const std::string HISTORY_FILE = "themis_history.jsonl";
 
-HWND hList;
-HWND hEdit;
-HWND hScan;
-HWND hApply;
+static const std::unordered_set<std::string> BASIC_STOPWORDS = {
+    "a","an","and","are","as","at","be","by","de","des","du","le","la","les","un","une","et","ou",
+    "of","on","for","from","in","into","is","it","its","no","not","the","to","with","sans","copy","copie",
+    "final","new","old","version","draft","tmp","temp","img","dsc","scan","document","file","fichier"
+};
 
-std::vector<std::string> files;
+struct FileProposal {
+    bool selected = true;
+    std::string source;
+    std::string destination;
+    int topic = 0;
+    std::string topic_label;
+    double confidence = 0.0;
+    std::string reason;
+    std::string model = "lda";
+    std::string category;
+    std::string bayes_label;
+    double bayes_confidence = 0.0;
+};
 
-void scanFolder(const std::string& path) {
-    files.clear();
+static std::string lower_ascii(std::string s){ for(char& c:s)c=(char)std::tolower((unsigned char)c); return s; }
+static std::string trim(const std::string& s){ size_t a=0,b=s.size(); while(a<b&&std::isspace((unsigned char)s[a]))++a; while(b>a&&std::isspace((unsigned char)s[b-1]))--b; return s.substr(a,b-a); }
+static bool token_char(unsigned char c){ return std::isalnum(c)||c>=128; }
+static std::vector<std::string> split_tokens(const std::string& text){ std::vector<std::string> out; std::string cur; for(unsigned char c:text){ if(token_char(c))cur.push_back((char)c); else{ if(!cur.empty()){out.push_back(lower_ascii(cur));cur.clear();}}} if(!cur.empty())out.push_back(lower_ascii(cur)); return out; }
+static std::vector<std::string> tokenize_filename(const fs::path& p){ std::string stem=p.stem().string(); for(char& c:stem) if(c=='_'||c=='-'||c=='.') c=' '; auto raw=split_tokens(stem); std::vector<std::string> toks; for(auto&w:raw) if(w.size()>1 && !BASIC_STOPWORDS.count(w)) toks.push_back(w); return toks; }
 
-    for (auto& p : fs::recursive_directory_iterator(path)) {
-        if (p.is_regular_file()) {
-            files.push_back(p.path().string());
-        }
-    }
+static std::string csv_escape(const std::string& v){ bool q=false; for(char c:v) if(c==','||c=='"'||c=='\n'||c=='\r'){q=true;break;} if(!q)return v; std::string o="\""; for(char c:v) o+=(c=='"'?"\"\"":std::string(1,c)); return o+"\""; }
+static std::vector<std::string> parse_csv_line(const std::string& line){ std::vector<std::string> cells; std::string cur; bool q=false; for(size_t i=0;i<line.size();++i){ char c=line[i]; if(q){ if(c=='"'){ if(i+1<line.size()&&line[i+1]=='"'){cur.push_back('"');++i;} else q=false;} else cur.push_back(c);} else { if(c=='"')q=true; else if(c==','){cells.push_back(cur);cur.clear();} else cur.push_back(c);} } cells.push_back(cur); return cells; }
+static bool parse_bool(std::string s){ s=lower_ascii(trim(s)); return s=="1"||s=="true"||s=="yes"||s=="y"; }
+static double round4(double x){ return std::round(x*10000.0)/10000.0; }
 
-    SendMessage(hList, LB_RESETCONTENT, 0, 0);
+static std::string json_escape(const std::string& s){ std::string o; for(char c:s){ switch(c){ case '"':o+="\\\"";break; case '\\':o+="\\\\";break; case '\n':o+="\\n";break; case '\r':o+="\\r";break; case '\t':o+="\\t";break; default:o.push_back(c);} } return o; }
+static std::string json_unescape(const std::string& s){ std::string o; for(size_t i=0;i<s.size();++i){ char c=s[i]; if(c=='\\'&&i+1<s.size()){ char n=s[++i]; if(n=='"')o+='"'; else if(n=='\\')o+='\\'; else if(n=='n')o+='\n'; else if(n=='r')o+='\r'; else if(n=='t')o+='\t'; else o+=n; } else o+=c; } return o; }
+static bool extract_json_string(const std::string& line,const std::string& key,std::string& value){ std::string pattern="\\\""+key+"\\\"\\s*:\\s*\\\"((?:\\\\\\\\.|[^\\\"\\\\\\\\])*)\\\""; std::regex re(pattern); std::smatch m; if(!std::regex_search(line,m,re)) return false; value=json_unescape(m[1].str()); return true; }
+static std::string now_iso(){ auto now=std::chrono::system_clock::now(); std::time_t t=std::chrono::system_clock::to_time_t(now); std::tm tm{}; 
+#if defined(_WIN32)
+localtime_s(&tm,&t);
+#else
+localtime_r(&t,&tm);
+#endif
+std::ostringstream oss; oss<<std::put_time(&tm,"%Y-%m-%dT%H:%M:%S"); return oss.str(); }
 
-    for (auto& f : files) {
-        SendMessage(hList, LB_ADDSTRING, 0, (LPARAM)f.c_str());
-    }
-}
+static std::string safe_label(std::string label){ label=trim(label); if(label.empty()) label="misc"; std::string out; bool us=false; for(unsigned char c:label){ bool ok=std::isalnum(c)||c=='_'||c=='-'||c>=128; if(ok){out.push_back((char)c);us=false;} else if(!us){out.push_back('_');us=true;} } while(!out.empty()&&out.front()=='_')out.erase(out.begin()); while(!out.empty()&&out.back()=='_')out.pop_back(); return out.empty()?"misc":out; }
+static std::string infer_label_from_destination(const std::string& d){ fs::path p(d); std::string name=p.parent_path().filename().string(); name=std::regex_replace(name,std::regex("^\\d+[_ -]*"),""); return safe_label(name); }
+static fs::path unique_path(fs::path p){ if(!fs::exists(p)) return p; int i=1; while(true){ fs::path c=p.parent_path()/(p.stem().string()+" ("+std::to_string(i)+")"+p.extension().string()); if(!fs::exists(c))return c; ++i; } }
+static fs::path destination_for(const fs::path& target,const std::string& cat,const std::string& filename,int prefix=-1){ std::string folder; if(prefix>=0){ std::ostringstream oss; oss<<std::setw(2)<<std::setfill('0')<<prefix<<"_"<<safe_label(cat); folder=oss.str(); } else folder=safe_label(cat); return unique_path(target/folder/filename); }
 
-std::string selectFolder(HWND hwnd) {
-    BROWSEINFO bi = {0};
-    bi.lpszTitle = "Select folder";
+class LDA{
+public:
+ int K,iterations,D=0,W=1; double alpha,beta; std::mt19937 rng; std::vector<std::unordered_map<int,int>> doc_topic; std::vector<std::unordered_map<std::string,int>> topic_word; std::vector<int> topic_counts, doc_lengths;
+ LDA(int topics=8,int it=350,double a=.1,double b=.1,unsigned seed=0):K(std::max(1,topics)),iterations(std::max(1,it)),alpha(a),beta(b),rng(seed){}
+ int randrange(int n){ std::uniform_int_distribution<int>d(0,n-1); return d(rng); }
+ int sample(const std::vector<double>& w){ double total=0; for(double x:w)total+=x; if(total<=0)return randrange(K); std::uniform_real_distribution<double>d(0,1); double r=total*d(rng); for(int i=0;i<(int)w.size();++i){ r-=w[i]; if(r<=0)return i;} return (int)w.size()-1; }
+ double ptd(int t,int d)const{ int c=0; auto it=doc_topic[d].find(t); if(it!=doc_topic[d].end())c=it->second; return (c+alpha)/(doc_lengths[d]+K*alpha); }
+ double pwt(const std::string&w,int t)const{ int c=0; auto it=topic_word[t].find(w); if(it!=topic_word[t].end())c=it->second; return (c+beta)/(topic_counts[t]+W*beta); }
+ LDA& fit(const std::vector<std::vector<std::string>>& docs){ D=(int)docs.size(); std::unordered_set<std::string> vocab; for(auto&doc:docs)for(auto&w:doc)vocab.insert(w); W=std::max(1,(int)vocab.size()); doc_topic.assign(D,{}); topic_word.assign(K,{}); topic_counts.assign(K,0); doc_lengths.clear(); for(auto&d:docs)doc_lengths.push_back((int)d.size()); std::vector<std::vector<int>> assign(D); for(int d=0;d<D;++d)for(size_t i=0;i<docs[d].size();++i)assign[d].push_back(randrange(K)); for(int d=0;d<D;++d)for(size_t i=0;i<docs[d].size();++i){auto&w=docs[d][i];int t=assign[d][i];doc_topic[d][t]++;topic_word[t][w]++;topic_counts[t]++;} for(int it=0;it<iterations;++it)for(int d=0;d<D;++d)for(size_t i=0;i<docs[d].size();++i){auto&w=docs[d][i];int t=assign[d][i];doc_topic[d][t]--;topic_word[t][w]--;topic_counts[t]--;doc_lengths[d]--; std::vector<double> weights; for(int k=0;k<K;++k)weights.push_back(pwt(w,k)*ptd(k,d)); int nt=sample(weights); assign[d][i]=nt; doc_topic[d][nt]++;topic_word[nt][w]++;topic_counts[nt]++;doc_lengths[d]++;} return *this; }
+ std::vector<double> document_distribution(int d)const{ double total=K*alpha; for(auto&kv:doc_topic[d])total+=kv.second; std::vector<double> out; for(int k=0;k<K;++k){ int c=0; auto it=doc_topic[d].find(k); if(it!=doc_topic[d].end())c=it->second; out.push_back((c+alpha)/total);} return out; }
+ std::pair<int,double> dominant_topic(int d)const{ auto dist=document_distribution(d); int k=0; for(int i=1;i<(int)dist.size();++i)if(dist[i]>dist[k])k=i; return {k,dist[k]}; }
+ std::string topic_label(int k,int topn=3)const{ std::vector<std::pair<std::string,int>> items; for(auto&kv:topic_word[k])if(kv.second>0)items.push_back(kv); std::sort(items.begin(),items.end(),[](auto&a,auto&b){return a.second!=b.second?a.second>b.second:a.first<b.first;}); std::string out; for(int i=0;i<(int)items.size()&&i<topn;++i){ if(!out.empty())out+="_"; out+=items[i].first;} return out.empty()?"topic_"+std::to_string(k+1):out; }
+};
 
-    LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+class MultinomialNaiveBayes{
+public:
+ double alpha=1.0; bool fitted=false; std::vector<std::string> labels; std::unordered_map<std::string,int> label_counts,total_words; std::unordered_map<std::string,std::unordered_map<std::string,int>> word_counts; std::unordered_set<std::string> vocab;
+ MultinomialNaiveBayes& fit(const std::vector<std::vector<std::string>>&docs,const std::vector<std::string>&labs){ for(size_t i=0;i<docs.size()&&i<labs.size();++i){ std::string label=safe_label(labs[i]); label_counts[label]++; for(auto&w:docs[i]){word_counts[label][w]++;total_words[label]++;vocab.insert(w);} } labels.clear(); for(auto&kv:label_counts)labels.push_back(kv.first); std::sort(labels.begin(),labels.end()); fitted=labels.size()>=2&&!vocab.empty(); return *this; }
+ std::vector<std::pair<std::string,double>> predict_proba_one(const std::vector<std::string>&doc)const{ if(!fitted)return{}; int vs=std::max(1,(int)vocab.size()); int td=0; for(auto&kv:label_counts)td+=kv.second; std::vector<std::pair<std::string,double>> scores; for(auto&label:labels){ double logp=std::log((double)label_counts.at(label)/td); double denom=total_words.at(label)+alpha*vs; for(auto&w:doc){ int c=0; auto lit=word_counts.find(label); if(lit!=word_counts.end()){ auto wit=lit->second.find(w); if(wit!=lit->second.end())c=wit->second;} logp+=std::log((c+alpha)/denom);} scores.push_back({label,logp}); } double m=scores[0].second; for(auto&kv:scores)m=std::max(m,kv.second); double z=0; for(auto&kv:scores){kv.second=std::exp(kv.second-m);z+=kv.second;} if(z<=0)z=1; for(auto&kv:scores)kv.second/=z; std::sort(scores.begin(),scores.end(),[](auto&a,auto&b){return a.second>b.second;}); return scores; }
+ std::pair<std::string,double> predict_one(const std::vector<std::string>&doc)const{ auto p=predict_proba_one(doc); return p.empty()?std::make_pair(std::string(),0.0):p[0]; }
+};
 
-    char path[MAX_PATH];
-    if (pidl && SHGetPathFromIDList(pidl, path)) {
-        return std::string(path);
-    }
+static std::vector<fs::path> iter_files(const std::vector<std::string>& roots,bool recursive=true,bool include_hidden=false){ std::vector<fs::path> files; for(auto&r:roots){ fs::path root=fs::absolute(r); if(!fs::exists(root))continue; if(recursive){ fs::recursive_directory_iterator it(root,fs::directory_options::skip_permission_denied),end; for(;it!=end;++it){ fs::path p=it->path(); if(!include_hidden){ bool hidden=false; for(auto&part:p){std::string s=part.string(); if(!s.empty()&&s[0]=='.'){hidden=true;break;}} if(hidden){ if(it->is_directory())it.disable_recursion_pending(); continue; }} if(it->is_regular_file()&&p.filename().string()!=HISTORY_FILE)files.push_back(p); }} else { for(auto&de:fs::directory_iterator(root,fs::directory_options::skip_permission_denied)){ fs::path p=de.path(); if(de.is_regular_file()&&p.filename().string()!=HISTORY_FILE)files.push_back(p); }}} std::sort(files.begin(),files.end()); return files; }
+struct HistoryRow{std::string source,destination,category,bayes_label;};
+static std::vector<HistoryRow> load_history(const std::string& target,const std::vector<std::string>& roots){ std::vector<fs::path> cand; if(!target.empty())cand.push_back(fs::absolute(target)/HISTORY_FILE); for(auto&r:roots){ fs::path rp=fs::absolute(r); cand.push_back(rp/HISTORY_FILE); cand.push_back(rp/"Themis_Sorted"/HISTORY_FILE);} std::set<std::string> seen; std::vector<HistoryRow> rows; for(auto&p:cand){ auto ps=p.string(); if(seen.count(ps)||!fs::exists(p))continue; seen.insert(ps); std::ifstream f(p); std::string line; while(std::getline(f,line)){ HistoryRow h; extract_json_string(line,"source",h.source); extract_json_string(line,"destination",h.destination); extract_json_string(line,"category",h.category); extract_json_string(line,"bayes_label",h.bayes_label); if(!h.source.empty()||!h.destination.empty())rows.push_back(h); }} return rows; }
+static std::vector<std::string> known_categories(const std::string& target,const std::vector<std::string>& roots){ std::set<std::string> cats; for(auto&r:load_history(target,roots)){ std::string cat=!r.category.empty()?r.category:(!r.bayes_label.empty()?r.bayes_label:infer_label_from_destination(r.destination)); if(!cat.empty())cats.insert(safe_label(cat)); } return {cats.begin(),cats.end()}; }
+static std::tuple<bool,MultinomialNaiveBayes,int,int> train_bayes_from_history(const std::string& target,const std::vector<std::string>& roots,int min_examples=3){ auto rows=load_history(target,roots); std::vector<std::vector<std::string>> docs; std::vector<std::string> labels; std::set<std::string> distinct; for(auto&r:rows){ std::string src=!r.source.empty()?r.source:r.destination; std::string label=!r.category.empty()?r.category:(!r.bayes_label.empty()?r.bayes_label:infer_label_from_destination(r.destination)); auto toks=tokenize_filename(src); if(toks.empty())toks=tokenize_filename(r.destination); if(!toks.empty()&&!label.empty()){docs.push_back(toks); labels.push_back(safe_label(label)); distinct.insert(safe_label(label));}} if((int)labels.size()<min_examples||distinct.size()<2)return{false,MultinomialNaiveBayes(),(int)labels.size(),(int)distinct.size()}; MultinomialNaiveBayes nb; nb.fit(docs,labels); return{nb.fitted,nb,(int)labels.size(),(int)distinct.size()}; }
 
-    return "";
-}
+static std::vector<FileProposal> build_plan(const std::vector<std::string>& roots,const std::string& target_root,int topics,int iterations,bool recursive,bool include_hidden,double min_confidence,double bayes_threshold,int min_bayes_examples){ auto files=iter_files(roots,recursive,include_hidden); if(files.empty())return{}; std::vector<std::vector<std::string>> docs; for(auto&p:files){ auto t=tokenize_filename(p); if(t.empty()){auto ext=p.extension().string(); if(!ext.empty()&&ext[0]=='.')ext.erase(ext.begin()); t.push_back(ext.empty()?"misc":lower_ascii(ext));} docs.push_back(t);} fs::path target=target_root.empty()?fs::absolute(roots[0])/"Themis_Sorted":fs::absolute(target_root); LDA lda(std::min(std::max(1,topics),(int)files.size()),iterations); lda.fit(docs); auto [has_bayes,bayes,n_examples,n_labels]=train_bayes_from_history(target.string(),roots,min_bayes_examples); std::vector<FileProposal> plan; for(size_t i=0;i<files.size();++i){ auto [topic,lda_conf]=lda.dominant_topic((int)i); std::string lda_label=safe_label(lda.topic_label(topic)); std::string chosen_cat=lda_label, model="lda", bayes_label=""; double chosen_conf=lda_conf,bayes_conf=0; std::ostringstream reason; reason<<"LDA discovered this group from filename tokens: "; for(size_t j=0;j<docs[i].size();++j){if(j)reason<<", ";reason<<docs[i][j];} if(has_bayes){ auto pred=bayes.predict_one(docs[i]); bayes_label=pred.first; bayes_conf=pred.second; if(!bayes_label.empty()&&bayes_conf>=bayes_threshold){chosen_cat=safe_label(bayes_label);model="bayes";chosen_conf=bayes_conf; reason.str(""); reason<<"Bayes used approved history: "<<n_examples<<" examples, "<<n_labels<<" categories. Tokens: "; for(size_t j=0;j<docs[i].size();++j){if(j)reason<<", ";reason<<docs[i][j];}} else reason<<" | Bayes available but below threshold: "<<bayes_label<<" "<<std::fixed<<std::setprecision(2)<<bayes_conf;} else reason<<" | Bayes waiting for training data: "<<n_examples<<" approved example(s), "<<n_labels<<" category/categories."; FileProposal fp; fp.selected=chosen_conf>=min_confidence; fp.source=files[i].string(); fp.destination=destination_for(target,chosen_cat,files[i].filename().string(),model=="lda"?topic+1:-1).string(); fp.topic=topic+1; fp.topic_label=lda_label; fp.confidence=round4(chosen_conf); fp.reason=reason.str(); fp.model=model; fp.category=chosen_cat; fp.bayes_label=bayes_label.empty()?"":safe_label(bayes_label); fp.bayes_confidence=round4(bayes_conf); plan.push_back(fp);} return plan; }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    static std::string currentPath;
+static void write_csv(const std::vector<FileProposal>& plan,const std::string& path){ std::ofstream f(path); f<<"selected,source,destination,topic,topic_label,confidence,reason,model,category,bayes_label,bayes_confidence\n"; for(auto&p:plan) f<<(p.selected?"true":"false")<<','<<csv_escape(p.source)<<','<<csv_escape(p.destination)<<','<<p.topic<<','<<csv_escape(p.topic_label)<<','<<p.confidence<<','<<csv_escape(p.reason)<<','<<csv_escape(p.model)<<','<<csv_escape(p.category)<<','<<csv_escape(p.bayes_label)<<','<<p.bayes_confidence<<'\n'; }
+static std::vector<FileProposal> read_csv(const std::string& path){ std::ifstream f(path); if(!f)throw std::runtime_error("Cannot read CSV: "+path); std::string header; std::getline(f,header); auto cols=parse_csv_line(header); std::unordered_map<std::string,int> idx; for(int i=0;i<(int)cols.size();++i)idx[cols[i]]=i; auto get=[&](auto&cells,const std::string&name,const std::string&def=""){auto it=idx.find(name);return(it==idx.end()||it->second>=(int)cells.size())?def:cells[it->second];}; std::vector<FileProposal> out; std::string line; while(std::getline(f,line)){ if(line.empty())continue; auto c=parse_csv_line(line); FileProposal p; p.selected=parse_bool(get(c,"selected","true")); p.source=get(c,"source"); p.destination=get(c,"destination"); p.topic=std::stoi(get(c,"topic","0")); p.topic_label=get(c,"topic_label"); p.confidence=std::stod(get(c,"confidence","0")); p.reason=get(c,"reason"); p.model=get(c,"model","lda"); p.category=get(c,"category",infer_label_from_destination(p.destination)); p.bayes_label=get(c,"bayes_label",""); p.bayes_confidence=std::stod(get(c,"bayes_confidence","0")); out.push_back(p);} return out; }
+static std::string proposal_json(const FileProposal&p,const std::string&at){ std::ostringstream o; o<<"{\"selected\":"<<(p.selected?"true":"false")<<",\"source\":\""<<json_escape(p.source)<<"\",\"destination\":\""<<json_escape(p.destination)<<"\",\"topic\":"<<p.topic<<",\"topic_label\":\""<<json_escape(p.topic_label)<<"\",\"confidence\":"<<p.confidence<<",\"reason\":\""<<json_escape(p.reason)<<"\",\"model\":\""<<json_escape(p.model)<<"\",\"category\":\""<<json_escape(p.category)<<"\",\"bayes_label\":\""<<json_escape(p.bayes_label)<<"\",\"bayes_confidence\":"<<p.bayes_confidence<<",\"applied_at\":\""<<at<<"\"}"; return o.str(); }
+static std::vector<FileProposal> apply_plan(std::vector<FileProposal> plan,const std::string& history_root){ std::vector<FileProposal> done; for(auto item:plan){ if(!item.selected)continue; fs::path src(item.source); if(!fs::exists(src))continue; item.category=safe_label(item.category.empty()?infer_label_from_destination(item.destination):item.category); fs::path dst=unique_path(item.destination); fs::create_directories(dst.parent_path()); std::error_code ec; fs::rename(src,dst,ec); if(ec){ ec.clear(); fs::copy_file(src,dst,fs::copy_options::overwrite_existing,ec); if(ec)continue; fs::remove(src,ec);} item.destination=dst.string(); done.push_back(item);} if(!done.empty()){ fs::path root=history_root.empty()?fs::path(done[0].destination).parent_path().parent_path():fs::absolute(history_root); fs::create_directories(root); std::ofstream f(root/HISTORY_FILE,std::ios::app); std::string at=now_iso(); for(auto&rec:done)f<<proposal_json(rec,at)<<'\n'; } return done; }
 
-    switch(msg) {
-        case WM_CREATE:
-            hEdit = CreateWindow("EDIT", "",
-                WS_VISIBLE | WS_CHILD | WS_BORDER,
-                10, 10, 500, 25,
-                hwnd, NULL, NULL, NULL);
-
-            CreateWindow("BUTTON", "Select",
-                WS_VISIBLE | WS_CHILD,
-                520, 10, 80, 25,
-                hwnd, (HMENU)1, NULL, NULL);
-
-            hScan = CreateWindow("BUTTON", "Scan",
-                WS_VISIBLE | WS_CHILD,
-                610, 10, 80, 25,
-                hwnd, (HMENU)2, NULL, NULL);
-
-            hApply = CreateWindow("BUTTON", "Apply",
-                WS_VISIBLE | WS_CHILD,
-                700, 10, 80, 25,
-                hwnd, (HMENU)3, NULL, NULL);
-
-            hList = CreateWindow("LISTBOX", NULL,
-                WS_VISIBLE | WS_CHILD | WS_BORDER | WS_VSCROLL,
-                10, 50, 770, 400,
-                hwnd, NULL, NULL, NULL);
-            break;
-
-        case WM_COMMAND:
-            switch(LOWORD(wParam)) {
-                case 1: {
-                    currentPath = selectFolder(hwnd);
-                    SetWindowText(hEdit, currentPath.c_str());
-                    break;
-                }
-                case 2: {
-                    char path[512];
-                    GetWindowText(hEdit, path, 512);
-
-                    scanFolder(path);
-                    break;
-                }
-                case 3: {
-                    MessageBox(hwnd, "Apply logic goes here", "Apply", MB_OK);
-                    break;
-                }
-            }
-            break;
-
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            return 0;
-    }
-
-    return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
-    const char CLASS_NAME[] = "ThemisGUI";
-
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = CLASS_NAME;
-
-    RegisterClass(&wc);
-
-    HWND hwnd = CreateWindowEx(
-        0,
-        CLASS_NAME,
-        "Themis GUI (C++)",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        800, 520,
-        NULL, NULL, hInstance, NULL
-    );
-
-    ShowWindow(hwnd, nCmdShow);
-
-    MSG msg = {};
-    while (GetMessage(&msg, NULL, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-}
+struct App{ std::vector<std::string> dirs; std::string target; int topics=8,iterations=350,min_bayes_examples=3,page=0,page_size=12; double bayes_threshold=.68,min_confidence=0.0; bool recursive=true,include_hidden=false; std::vector<FileProposal> plan; std::string filter; };
+static void pause(){ std::cout<<"\nPress Enter..."; std::string s; std::getline(std::cin,s); }
+static std::string ask(const std::string& prompt){ std::cout<<prompt; std::string s; std::getline(std::cin,s); return s; }
+static std::vector<int> visible_indices(const App&a){ std::vector<int> ids; std::string q=lower_ascii(a.filter); for(int i=0;i<(int)a.plan.size();++i){ auto&p=a.plan[i]; std::string hay=lower_ascii(p.source+" "+p.destination+" "+p.category+" "+p.model+" "+p.reason); if(q.empty()||hay.find(q)!=std::string::npos)ids.push_back(i);} return ids; }
+static std::string shortstr(std::string s,size_t n){ if(s.size()<=n)return s; return s.substr(0,n>3?n-3:n)+"..."; }
+static void show_plan_page(App&a){ auto ids=visible_indices(a); int pages=ids.empty()?1:(int)((ids.size()+a.page_size-1)/a.page_size); if(a.page>=pages)a.page=pages-1; if(a.page<0)a.page=0; int start=a.page*a.page_size,end=std::min((int)ids.size(),start+a.page_size); std::cout<<"\n=== PLAN "<<(a.page+1)<<"/"<<pages<<" | visible "<<ids.size()<<" / total "<<a.plan.size()<<" ===\n"; std::cout<<"Idx Sel Model  Conf   Category             Source -> Destination\n"; std::cout<<"--------------------------------------------------------------------------------\n"; for(int k=start;k<end;++k){ int i=ids[k]; auto&p=a.plan[i]; std::cout<<std::setw(3)<<i<<" "<<(p.selected?"[x]":"[ ]")<<" "<<std::setw(6)<<p.model<<" "<<std::setw(6)<<p.confidence<<" "<<std::left<<std::setw(20)<<shortstr(p.category,20)<<std::right<<" "<<shortstr(fs::path(p.source).filename().string(),24)<<" -> "<<shortstr(fs::path(p.destination).parent_path().filename().string(),24)<<"\n"; } }
+static void set_category(App&a,int i,const std::string& cat){ if(i<0||i>=(int)a.plan.size())return; auto&p=a.plan[i]; p.category=safe_label(cat); fs::path target=a.target.empty()?(a.dirs.empty()?fs::current_path()/"Themis_Sorted":fs::absolute(a.dirs[0])/"Themis_Sorted"):fs::absolute(a.target); p.destination=destination_for(target,p.category,fs::path(p.source).filename().string(),-1).string(); p.model="manual"; p.reason="Manual category correction. This row will train Bayes after Apply."; }
+static void settings(App&a){ while(true){ std::cout<<"\n=== SETTINGS ===\n1 Topics: "<<a.topics<<"\n2 Iterations: "<<a.iterations<<"\n3 Bayes threshold: "<<a.bayes_threshold<<"\n4 Min Bayes examples: "<<a.min_bayes_examples<<"\n5 Recursive: "<<(a.recursive?"yes":"no")<<"\n6 Include hidden: "<<(a.include_hidden?"yes":"no")<<"\n7 Back\nChoice: "; std::string c; std::getline(std::cin,c); if(c=="1")a.topics=std::stoi(ask("Topics: ")); else if(c=="2")a.iterations=std::stoi(ask("Iterations: ")); else if(c=="3")a.bayes_threshold=std::stod(ask("Bayes threshold: ")); else if(c=="4")a.min_bayes_examples=std::stoi(ask("Min Bayes examples: ")); else if(c=="5")a.recursive=!a.recursive; else if(c=="6")a.include_hidden=!a.include_hidden; else break; }}
+static void plan_menu(App&a){ while(true){ show_plan_page(a); std::cout<<"\nPlan actions: n next | p prev | t toggle | e edit category | b use Bayes | f filter | s save CSV | l load CSV | a apply | q back\nChoice: "; std::string c; std::getline(std::cin,c); if(c=="n")a.page++; else if(c=="p")a.page--; else if(c=="t"){ int i=std::stoi(ask("Index: ")); if(i>=0&&i<(int)a.plan.size())a.plan[i].selected=!a.plan[i].selected; } else if(c=="e"){ int i=std::stoi(ask("Index: ")); std::string cat=ask("New category: "); set_category(a,i,cat); } else if(c=="b"){ int i=std::stoi(ask("Index: ")); if(i>=0&&i<(int)a.plan.size()&&!a.plan[i].bayes_label.empty()){ set_category(a,i,a.plan[i].bayes_label); a.plan[i].model="bayes"; a.plan[i].reason="Bayes suggestion manually accepted. This approval strengthens Bayes after Apply."; }} else if(c=="f"){ a.filter=ask("Filter text (empty clears): "); a.page=0; } else if(c=="s"){ std::string path=ask("CSV path [themis_plan.csv]: "); if(path.empty())path="themis_plan.csv"; write_csv(a.plan,path); std::cout<<"Saved "<<path<<"\n"; pause(); } else if(c=="l"){ std::string path=ask("CSV path: "); if(!path.empty()){ a.plan=read_csv(path); a.page=0; }} else if(c=="a"){ std::string yn=ask("Move selected files and train Bayes? yes/no: "); if(lower_ascii(yn)=="yes"||lower_ascii(yn)=="y"){ auto done=apply_plan(a.plan,a.target); std::cout<<"Applied "<<done.size()<<" moves. Bayes history updated.\n"; a.plan.clear(); pause(); }} else if(c=="q")break; }}
+static void main_menu(){ App a; while(true){ std::cout<<"\n==============================\nTHEMIS TUI - LDA + BAYES\n==============================\n"; std::cout<<"Folders: "; if(a.dirs.empty())std::cout<<"(none)"; else for(auto&d:a.dirs)std::cout<<d<<" "; std::cout<<"\nTarget: "<<(a.target.empty()?"default Themis_Sorted":a.target)<<"\nPlan rows: "<<a.plan.size()<<"\n\n1 Add folder\n2 Clear folders\n3 Set target root\n4 Settings\n5 Analyze / build plan\n6 Review/edit plan\n7 Learned categories\n8 Apply selected moves\n9 Exit\nChoice: "; std::string c; std::getline(std::cin,c); try{ if(c=="1"){ std::string d=ask("Folder path: "); if(!d.empty())a.dirs.push_back(d); } else if(c=="2")a.dirs.clear(); else if(c=="3")a.target=ask("Target root empty=default: "); else if(c=="4")settings(a); else if(c=="5"){ if(a.dirs.empty()){std::cout<<"Add at least one folder.\n"; pause();} else {std::cout<<"Analyzing...\n"; a.plan=build_plan(a.dirs,a.target,a.topics,a.iterations,a.recursive,a.include_hidden,a.min_confidence,a.bayes_threshold,a.min_bayes_examples); int lda=0,bayes=0; for(auto&p:a.plan){if(p.model=="bayes")bayes++; else if(p.model=="lda")lda++;} std::cout<<"Analysis complete: "<<a.plan.size()<<" files. LDA: "<<lda<<" Bayes: "<<bayes<<"\n"; pause();}} else if(c=="6")plan_menu(a); else if(c=="7"){ auto cats=known_categories(a.target,a.dirs); std::cout<<"\nLearned categories:\n"; if(cats.empty())std::cout<<"None yet. Apply reviewed moves first.\n"; for(auto&cat:cats)std::cout<<"- "<<cat<<"\n"; pause();} else if(c=="8"){ if(a.plan.empty()){std::cout<<"No plan. Analyze first.\n";pause();} else {std::string yn=ask("Move selected files and train Bayes? yes/no: "); if(lower_ascii(yn)=="yes"||lower_ascii(yn)=="y"){ auto done=apply_plan(a.plan,a.target); std::cout<<"Applied "<<done.size()<<" moves. Bayes history updated.\n"; a.plan.clear(); pause();}}} else if(c=="9")break; } catch(const std::exception&ex){ std::cout<<"Error: "<<ex.what()<<"\n"; pause(); } }}
+int main(){ try{ main_menu(); }catch(const std::exception&ex){ std::cerr<<"Fatal error: "<<ex.what()<<"\n"; return 1;} return 0; }
