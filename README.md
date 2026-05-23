@@ -5,18 +5,19 @@
 <td style="vertical-align: top; font-size:12px;">
 <pre style="margin:0; white-space: pre-wrap;">
 $ python3 -m themis --help
-usage: themis [-h] {gui,scan,apply} ...
+usage: themis [-h] {gui,scan,apply,categories} ...
 
-Thémis - file sorting assistant based on filename topics
+Themis 2.1 - guided file sorting assistant using LDA first, then Bayes after approved training history.
 
 positional arguments:
-  {gui,scan,apply}
-    gui             open graphical interface
-    scan            scan folders and create a proposed sorting plan
-    apply           apply a reviewed CSV plan
+  {gui,scan,apply,categories}
+    gui                 open the graphical interface
+    scan                scan folders and create a proposed sorting plan
+    apply               apply a reviewed CSV plan and update Bayes training history
+    categories          list categories already learned from approved history
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help            show this help message and exit
 $
 </pre>
 </td>

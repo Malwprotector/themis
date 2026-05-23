@@ -1,4 +1,4 @@
-#IDA
+# lda_model.py
 import random
 from collections import Counter
 
