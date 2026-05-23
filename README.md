@@ -329,7 +329,7 @@ Important: PyInstaller is not a true cross-compiler. Build Windows binaries on W
 ### 1. Download Or Clone The Project
 
 ```bash
-git clone https://example.com/themis.git
+git clone https://github.com/Malwprotector/themis.git
 cd themis
 ```
 
