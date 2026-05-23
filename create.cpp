@@ -71,15 +71,22 @@ int main() {
         folders.push_back(newDir);
     }
 
-    for (int i = 0; i < 50; i++) {
-        fs::path folder = folders[randInt(0, folders.size() - 1)];
-        std::string ext = randomExtension();
-        fs::path filePath = folder / (randomName() + ext);
+for (int i = 0; i < 1037; i++) {  // nbr max
 
-        std::ofstream file(filePath);
-        file << fakeContent(ext);
-        file.close();
+    std::string ext = randomExtension();
+    fs::path folder;
+
+    if (randInt(0, 100) < 40) { //% fichiers racine
+        folder = baseDir;
+    } else {
+        folder = folders[randInt(0, folders.size() - 1)];
     }
+
+    fs::path filePath = folder / (randomName() + ext);
+
+    std::ofstream file(filePath);
+    file << fakeContent(ext);
+}
 
     std::cout << "Chaos generated in: " << baseDir << std::endl;
     return 0;
