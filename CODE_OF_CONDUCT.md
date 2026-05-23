@@ -1,4 +1,4 @@
-## /!\ Strict AGPL License Notice /!\
+## AGPL License Notice
 
 This project is released under the **GNU Affero General Public License v3.0 or later**.
 
