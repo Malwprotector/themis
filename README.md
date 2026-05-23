@@ -33,7 +33,7 @@ Themis is a cross-platform Python application that helps users reorganize files 
 
 The project originally worked as an **LDA-only topic-based sorter**. The current version keeps LDA as the first discovery layer (1.0), but adds a **local Naive Bayes learning layer** (2.1). This means Themis can now improve over time from the categories approved by the user, without uploading files, file names, or training data to any external service.
 
->Note : this video doesn't show the new 2.1 version
+>Note : this video doesn't show the new 2.1 version.
 
 https://github.com/user-attachments/assets/44b5669c-3250-43cf-8b42-4c517721a8e5
 
