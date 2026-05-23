@@ -246,6 +246,7 @@ Themis_Sorted/01_invoice_client_2025/my_file.pdf
 Thémis/
   README.md
   run_themis.py
+  create.cpp
   themis/
     __init__.py
     cli.py
@@ -253,6 +254,8 @@ Thémis/
     lda_model.py
     scanner.py
 ```
+
+>Note : create.cpp is a c++ program to "simulate" a chaotic file structure. to change the amount of file generated, edit `for (int i = 0; i < 100; i++) {` value. You can compile this program with g++ on linux : `g++ create.cpp -o chaos -std=c++17` .
 
 ### `run_themis.py`
 
