@@ -7,7 +7,7 @@
 $ python3 -m themis --help
 usage: themis [-h] {gui,scan,apply,categories} ...
 
-Themis 2.1 - guided file sorting assistant using LDA first, then Bayes after approved training history.
+Themis 2.1 - guided file sorting assistant using locally trained algorithm.
 
 positional arguments:
   {gui,scan,apply,categories}
@@ -27,11 +27,11 @@ $
 
 # Thémis
 
-**Private, local, low-resource file sorting assistant powered by a lightweight LDA-inspired topic model.**
+**Private, local, low-resource file sorting assistant powered by a self-learning local algorithm.**
 
-Thémis is a cross-platform Python application that helps users reorganize files on their own computer. It analyzes file names, proposes a new folder structure, shows the proposed changes before anything is moved, and lets the user edit the plan before applying it.
+Themis is a cross-platform Python application that helps users reorganize files on their own computer. It analyzes file names, proposes a new folder structure, shows the proposed changes before anything is moved, and lets the user edit categories before applying the plan.
 
-The application can be used either with a graphical interface or from the command line.
+The project originally worked as an **LDA-only topic-based sorter**. The current version keeps LDA as the first discovery layer (1.0), but adds a **local Naive Bayes learning layer** (2.1). This means Themis can now improve over time from the categories approved by the user, without uploading files, file names, or training data to any external service.
 
 https://github.com/user-attachments/assets/44b5669c-3250-43cf-8b42-4c517721a8e5
 
@@ -54,16 +54,19 @@ https://github.com/user-attachments/assets/44b5669c-3250-43cf-8b42-4c517721a8e5
 
 | Property | Meaning |
 |---|---|
-| Name | **Thémis** |
+| Name | **Themis** |
 | License | **GNU Affero General Public License** |
-| Privacy model | **Local-first**. The application analyzes local file names on the user’s machine. |
+| Privacy model | **Local-first**. File names, paths, categories, and training history stay on the user’s machine. |
 | Network use | No network connection is required for normal use. |
 | Data sent to third parties | None by design. |
 | Main input | File names and paths selected by the user. |
 | Main output | A proposed file-moving plan and, after confirmation, moved files. |
 | Destructive operations | No deletion is performed by design. |
-| Default behavior | Preview-first: Thémis proposes a plan before moving files. |
-| Resource usage | Lightweight. It uses a small topic model over file-name tokens, not full file contents. |
+| Default behavior | Preview-first: Themis proposes a plan before moving files. |
+| Original algorithm | Lightweight LDA-inspired topic model over file-name tokens. |
+| Current algorithm | Hybrid workflow: LDA discovers initial groups, then local Naive Bayes takes over when enough approved training history exists. |
+| Training model | Local, incremental-by-history training from user-approved categories stored in `themis_history.jsonl`. |
+| Resource usage | Lightweight. It uses file-name tokens, not full file contents. |
 | Cross-platform | Windows, macOS, and GNU/Linux. |
 | Interfaces | GUI and CLI. |
 | Target users | People who want to reorganize local folders safely and privately. |
@@ -78,9 +81,9 @@ The name was chosen because the software’s purpose is to restore order in chao
 
 ---
 
-## What Thémis Does
+## What Themis Does
 
-Thémis helps sort local files by analyzing their file names.
+Themis helps sort local files by analyzing their file names.
 
 For example, a folder containing:
 
@@ -96,32 +99,52 @@ may be reorganized into folders such as:
 
 ```text
 Themis_Sorted/
-  01_invoice_client_2025/
+  invoices/
     invoice_client_alpha_2025.pdf
     invoice_client_beta_2024.pdf
-  02_photo_holiday_family/
+  photos/
     holiday_family_photo.jpg
-  03_project_report_ai/
+  reports/
     project_report_ai.docx
-  04_meeting_budget_notes/
+  meetings/
     meeting_notes_budget.txt
 ```
 
-The exact result depends on the topic model, the number of requested topics, and the file names found in the selected folders.
+At the very beginning, Themis may create LDA-style topic folders such as:
+
+```text
+Themis_Sorted/
+  01_invoice_client_2025/
+  02_photo_holiday_family/
+  03_project_report_ai/
+```
+
+After the user reviews and approves categories, the local Bayes model learns from that history. Future scans can then use clearer user-defined categories such as:
+
+```text
+invoices
+photos
+reports
+meetings
+courses
+archives
+```
 
 ---
 
-## What Thémis Does Not Do
+## What Themis Does Not Do
 
-Thémis does not:
+Themis does not:
 
 - read the full content of files;
 - upload files to a server;
 - require an online account;
+- train a remote model;
+- send file names, paths, or categories to third parties;
 - delete files;
 - guarantee perfect classification;
 - replace human validation;
-- understand private business context unless that context appears in file names;
+- understand private business context unless that context appears in file names or approved categories;
 - decrypt, inspect, or modify document contents.
 
 The program is designed as a local assistant, not as an autonomous document manager.
@@ -130,26 +153,32 @@ The program is designed as a local assistant, not as an autonomous document mana
 
 ## Core Workflow
 
-Thémis follows a review-first workflow.
+Themis follows a review-first workflow.
 
 ```text
 Select folders
-      ↓
+↓
 Scan file names
-      ↓
+↓
 Tokenize names
-      ↓
-Run LDA-inspired topic model
-      ↓
-Generate proposed folder structure
-      ↓
+↓
+Run LDA discovery model
+↓
+Load local Bayes history if available
+↓
+Use Bayes when trained and confident
+↓
+Generate proposed categories and destinations
+↓
 Show editable plan
-      ↓
-User validates or edits
-      ↓
+↓
+User validates or edits categories
+↓
 Move selected files
-      ↓
-Write move history
+↓
+Write local training history
+↓
+Bayes improves for the next scan
 ```
 
 No move is applied until the user confirms the operation.
@@ -158,7 +187,14 @@ No move is applied until the user confirms the operation.
 
 ## How The Algorithm Works
 
-Thémis uses a lightweight LDA-inspired topic model adapted from the original `LDA.py` prototype.
+The current version uses a hybrid approach.
+
+```text
+LDA = discovery layer
+Bayes = learned classification layer
+```
+
+The project started as an LDA-only sorter. That was useful for discovering groups without any predefined categories. However, LDA does not truly learn the user’s preferred folder names. The new Bayes layer solves that by learning from locally approved categories.
 
 ### 1. Each File Name Becomes A Document
 
@@ -180,11 +216,11 @@ The extension may be used as fallback information if the name contains no useful
 
 Common words such as `the`, `and`, `de`, `le`, `la`, `document`, `file`, or `copy` are ignored because they usually do not help classification.
 
-### 3. Topics Are Learned
+### 3. LDA Discovers Initial Groups
 
-The LDA model groups words that often appear in related file names. Each topic is represented by a small set of important words.
+When there is no training history, Themis uses the lightweight LDA model to group file-name tokens into topics.
 
-Example topic labels:
+Example LDA topic labels:
 
 ```text
 invoice_client_2025
@@ -192,17 +228,92 @@ photo_holiday_family
 project_report_ai
 ```
 
-### 4. Each File Gets A Dominant Topic
+This is useful for first-time use because it does not require predefined categories.
 
-For every file, Thémis computes the topic that best matches its file-name tokens.
+### 4. Bayes Learns From Approved Categories
 
-### 5. A Destination Folder Is Proposed
-
-The dominant topic becomes a proposed destination folder:
+After the user reviews the proposed plan and applies selected moves, Themis writes approved category decisions into:
 
 ```text
-Themis_Sorted/01_invoice_client_2025/my_file.pdf
+themis_history.jsonl
 ```
+
+On the next scan, Themis reads this local history and trains a small Multinomial Naive Bayes classifier from it.
+
+### 5. Bayes Takes Over When It Is Ready
+
+Bayes is used only when it has enough local examples and enough confidence.
+
+Default activation conditions:
+
+```text
+minimum approved examples: 3
+minimum distinct categories: 2
+Bayes confidence threshold: 0.68
+```
+
+If Bayes is confident enough, it proposes the category. If not, Themis falls back to LDA.
+
+```text
+If Bayes is not trained:
+    use LDA
+
+If Bayes is trained but confidence is too low:
+    use LDA
+
+If Bayes is trained and confidence is high enough:
+    use Bayes
+```
+
+### 6. The User Remains In Control
+
+The user can edit categories before applying moves. Manual corrections are important because they become high-quality local training data for Bayes.
+
+---
+
+## Local Bayes Training
+
+The Bayes model is trained **locally** from the user’s own approved history.
+
+### Where Training Data Is Stored
+
+Training examples are stored in:
+
+```text
+themis_history.jsonl
+```
+
+This file is written inside the selected target root when moves are applied.
+
+### What The History Contains
+
+Each applied move records information such as:
+
+```json
+{"selected": true, "source": "/old/invoice_alpha.pdf", "destination": "/sorted/invoices/invoice_alpha.pdf", "category": "invoices", "model": "manual", "confidence": 0.8125, "applied_at": "2026-05-22T21:30:00"}
+```
+
+### What Bayes Learns
+
+Bayes learns associations between file-name tokens and approved categories.
+
+Example:
+
+```text
+invoice, alpha, 2025 -> invoices
+meeting, budget -> meetings
+holiday, family, photo -> photos
+```
+
+### Why This Matters
+
+The original LDA-only version could discover patterns, but it could not reliably remember the user’s preferred categories. The Bayes layer adds local personalization:
+
+- the more the user validates, the better Bayes becomes;
+- the training data remains on the user’s machine;
+- the model adapts to the user’s naming habits;
+- no cloud service is required;
+- no file contents are read.
 
 ---
 
@@ -221,13 +332,15 @@ Thémis/
     scanner.py
 ```
 
->Note : create.cpp is a c++ program to "simulate" a chaotic file structure. to change the amount of file generated, edit `for (int i = 0; i < 100; i++) {` value. You can compile this program with g++ on linux : `g++ create.cpp -o chaos -std=c++17` .
+> Note: `create.cpp` is a C++ program used to simulate a chaotic file structure. To change the number of generated files, edit the value in `for (int i = 0; i < 100; i++) {`. You can compile it on Linux with:
+
+```bash
+g++ create.cpp -o chaos -std=c++17
+```
 
 ### `run_themis.py`
 
-Convenience launcher for the graphical interface.
-
-Equivalent to:
+Convenience launcher for the graphical interface. Equivalent to:
 
 ```bash
 python -m themis gui
@@ -252,7 +365,7 @@ Main responsibilities:
 
 ### `themis/scanner.py`
 
-Contains the file scanning and planning logic.
+Contains the file scanning, planning, LDA fallback, Bayes training, and move logic.
 
 Main responsibilities:
 
@@ -260,11 +373,14 @@ Main responsibilities:
 - ignore hidden files unless requested;
 - tokenize file names;
 - remove stopwords;
+- run LDA when there is no reliable Bayes prediction;
+- train local Naive Bayes from approved history;
+- choose Bayes categories when confidence is high enough;
 - build the proposed move plan;
 - create safe destination paths;
 - write and read CSV plans;
 - apply selected file moves;
-- write move history.
+- write local training history.
 
 ### `themis/gui.py`
 
@@ -272,14 +388,18 @@ Contains the Tkinter graphical interface.
 
 Main responsibilities:
 
-- add source directories;
+- add source folders;
 - choose target root;
-- select topic count;
+- select LDA topic count;
+- set Bayes confidence threshold;
 - run analysis;
 - display the proposed plan;
-- edit destinations;
-- toggle selected files;
-- apply selected moves after confirmation.
+- show whether LDA, Bayes, or manual correction produced the category;
+- edit categories efficiently;
+- apply one category to multiple selected rows;
+- filter and review proposals;
+- apply selected moves after confirmation;
+- update local Bayes history.
 
 ### `themis/cli.py`
 
@@ -289,8 +409,9 @@ Main commands:
 
 ```bash
 python -m themis gui
-python -m themis scan <directories>
-python -m themis apply <plan.csv>
+python -m themis scan
+python -m themis apply
+python -m themis categories
 ```
 
 ---
@@ -403,44 +524,54 @@ python run_themis.py
 The main window opens with the title:
 
 ```text
-Thémis - File Sorting Assistant
+Themis - Guided LDA + Bayes File Sorting
 ```
 
-### Step 2: Add Directories
+### Step 2: Add Folders
 
 Click:
 
 ```text
-Add directory
+Add folder
 ```
 
 Choose one or more folders containing files to sort.
 
-### Step 3: Choose Topic Count
+### Step 3: Choose LDA Topic Count
 
-Use the `Topics` input.
+Use the `LDA topics` input.
 
-Suggested values:
-
-| Number Of Files | Suggested Topics |
+| Number Of Files | Suggested LDA Topics |
 |---:|---:|
 | 10–50 | 3–6 |
 | 50–500 | 6–12 |
 | 500+ | 10–25 |
 
-A higher topic count creates more specific folders. A lower topic count creates broader folders.
+A higher topic count creates more specific LDA groups. A lower topic count creates broader LDA groups.
 
-### Step 4: Choose Target Root
+This setting mostly matters when Bayes is not trained yet or when Bayes confidence is too low.
 
-You can choose a target root folder.
+### Step 4: Choose Bayes Threshold
 
-If no target root is selected, Thémis creates a default folder inside the first selected directory:
+Use the `Bayes threshold` input.
+
+Default:
+
+```text
+0.68
+```
+
+A higher value makes Bayes more cautious. A lower value lets Bayes override LDA more often.
+
+### Step 5: Choose Target Root
+
+You can choose a target root folder. If no target root is selected, Themis creates a default folder inside the first selected directory:
 
 ```text
 Themis_Sorted
 ```
 
-### Step 5: Analyze
+### Step 6: Analyze
 
 Click:
 
@@ -448,38 +579,58 @@ Click:
 Analyze
 ```
 
-Thémis scans file names and proposes destinations.
+Themis scans file names, runs LDA, loads Bayes history if available, and proposes categories and destinations.
 
-### Step 6: Review The Plan
+### Step 7: Review The Plan
 
 The table shows:
 
 | Column | Meaning |
 |---|---|
 | Selected | Whether the file will be moved. |
+| Model | `lda`, `bayes`, or `manual`. Shows which decision source produced the current category. |
+| Category | The category that will be used as Bayes training data after applying moves. |
 | Source | Current file path. |
 | Destination | Proposed new path. |
-| Topic | Numeric topic identifier. |
-| Confidence | Topic confidence score. |
-| Reason | Tokens used to classify the file. |
+| Topic | Numeric LDA topic identifier. |
+| Topic Label | LDA-generated label. |
+| Confidence | Confidence of the chosen model. |
+| Bayes Label | Bayes suggestion, when available. |
+| Bayes Confidence | Bayes confidence score. |
+| Reason | Explanation based on tokens and model state. |
 
-### Step 7: Edit The Plan
+### Step 8: Edit Categories
 
 You can:
 
-- double-click a row to edit the destination;
-- select a row and click `Edit destination`;
-- select a row and click `Toggle selected` to include or exclude it.
+- double-click a row to edit its category;
+- select multiple rows and apply one category to all of them;
+- use the fast category editor in the right panel;
+- accept the Bayes suggestion when available;
+- filter rows to review a subset of files;
+- right-click a row to open the context menu.
 
-### Step 8: Apply Selected Moves
+Manual category corrections are saved as training examples when moves are applied.
+
+### Step 9: Apply Selected Moves
 
 Click:
 
 ```text
-Apply selected moves
+Apply moves + train Bayes
 ```
 
-Confirm the operation. Thémis moves only selected files.
+Confirm the operation. Themis moves only selected files and writes approved categories to `themis_history.jsonl`.
+
+### Useful Shortcuts
+
+```text
+Ctrl+A     select all
+Space      toggle move flag
+Enter      edit category
+Ctrl+R     analyze again
+Ctrl+S     apply moves
+```
 
 ---
 
@@ -489,6 +640,12 @@ Confirm the operation. Thémis moves only selected files.
 
 ```bash
 python -m themis --help
+```
+
+Expected command structure:
+
+```text
+usage: themis [-h] {gui,scan,apply,categories} ...
 ```
 
 ### Open GUI From CLI
@@ -511,6 +668,18 @@ This scans the folders and writes a CSV plan. It does not move files.
 python -m themis scan ~/Downloads --target ~/SortedFiles --topics 6 --output plan.csv
 ```
 
+### Set Bayes Threshold
+
+```bash
+python -m themis scan ~/Downloads --target ~/SortedFiles --bayes-threshold 0.75 --output plan.csv
+```
+
+### Set Minimum Bayes Training Examples
+
+```bash
+python -m themis scan ~/Downloads --min-bayes-examples 5 --output plan.csv
+```
+
 ### Disable Recursive Scan
 
 ```bash
@@ -526,7 +695,13 @@ python -m themis scan ~/Downloads --include-hidden --output plan.csv
 ### Apply A Reviewed Plan
 
 ```bash
-python -m themis apply plan.csv
+python -m themis apply plan.csv --target ~/SortedFiles
+```
+
+### List Learned Categories
+
+```bash
+python -m themis categories --target ~/SortedFiles
 ```
 
 ### Direct Scan And Apply
@@ -537,7 +712,7 @@ Use with caution:
 python -m themis scan ~/Downloads --topics 6 --apply
 ```
 
-The safer workflow is to generate a CSV, review it, then apply it.
+The safer workflow is to generate a CSV, review categories, then apply it.
 
 ---
 
@@ -546,13 +721,13 @@ The safer workflow is to generate a CSV, review it, then apply it.
 The generated CSV contains:
 
 ```text
-selected,source,destination,topic,topic_label,confidence,reason
+selected,source,destination,topic,topic_label,confidence,reason,model,category,bayes_label,bayes_confidence
 ```
 
 Example row:
 
 ```csv
-true,/home/user/Downloads/invoice_alpha.pdf,/home/user/Downloads/Themis_Sorted/01_invoice_alpha/invoice_alpha.pdf,1,invoice_alpha,0.8462,"dominant topic from filename tokens: invoice, alpha"
+true,/home/user/Downloads/invoice_alpha.pdf,/home/user/SortedFiles/invoices/invoice_alpha.pdf,1,invoice_alpha,0.8462,"Bayes used approved history: 12 examples, 4 categories. Tokens: invoice, alpha",bayes,invoices,invoices,0.8462
 ```
 
 ### Editing The CSV Manually
@@ -561,12 +736,14 @@ Before applying a plan, you may edit:
 
 - `selected`: set to `true` or `false`;
 - `destination`: change the destination path;
-- other columns are informational and should normally remain unchanged.
+- `category`: change the category that Bayes should learn;
+- other columns are mostly informational and should normally remain unchanged.
+
+The `category` field is especially important. It is the label used to train Bayes after the plan is applied.
 
 ---
 
-
-### History Log
+## History Log
 
 Applied moves are logged in:
 
@@ -574,13 +751,15 @@ Applied moves are logged in:
 themis_history.jsonl
 ```
 
-Each line is a JSON object containing the source, destination, topic, confidence, and timestamp.
+Each line is a JSON object containing the source, destination, category, model, confidence, Bayes information, and timestamp.
 
 Example:
 
 ```json
-{"selected": true, "source": "/old/file.pdf", "destination": "/new/file.pdf", "topic": 1, "topic_label": "invoice_client", "confidence": 0.8125, "reason": "dominant topic from filename tokens: invoice, client", "applied_at": "2026-05-22T21:30:00"}
+{"selected": true, "source": "/old/file.pdf", "destination": "/new/invoices/file.pdf", "topic": 1, "topic_label": "invoice_client", "confidence": 0.8125, "reason": "Manual category correction. This row will train Bayes after Apply.", "model": "manual", "category": "invoices", "bayes_label": "invoices", "bayes_confidence": 0.74, "applied_at": "2026-05-22T21:30:00"}
 ```
+
+The history file is used as local training data for Bayes during later scans.
 
 ---
 
@@ -911,7 +1090,6 @@ python -m themis apply plan.csv
 
 ## Troubleshooting
 
-
 ### GUI Does Not Start On Linux
 
 Install Tkinter:
@@ -938,12 +1116,30 @@ pip install --upgrade pyinstaller
 
 Build separately on each target operating system. Do not expect a Windows executable built on Linux to work as a native Windows build.
 
+### Bayes Does Not Seem To Take Over
+
+Possible causes:
+
+- not enough approved history yet;
+- fewer than two distinct categories in history;
+- Bayes confidence is below the threshold;
+- file names are too short or too generic;
+- the target root does not point to the history file used previously.
+
+Try:
+
+- applying a few manually corrected categories;
+- using clearer category names;
+- lowering `--bayes-threshold` slightly;
+- making sure the same target root is used across scans.
+
 ### Classification Is Poor
 
 Try:
 
-- reducing the number of topics;
-- increasing the number of topics;
+- correcting categories manually and applying moves to train Bayes;
+- reducing the number of LDA topics;
+- increasing the number of LDA topics;
 - renaming unclear files before scanning;
 - sorting a smaller folder first;
 - using more descriptive file names.
@@ -965,7 +1161,9 @@ Possible causes:
 - File classification is based mainly on file names.
 - Very short or generic names are difficult to classify.
 - LDA works better when there are enough files and repeated naming patterns.
-- The current GUI is intentionally simple.
+- Bayes requires approved local history before it can outperform LDA.
+- Bayes quality depends on the quality and consistency of user-approved categories.
+- The current Bayes training is history-based, not a persistent binary model file.
 - The software does not yet provide a full rollback button, although moves are logged.
 - Packaging and signing must be handled separately for production distribution.
 
@@ -976,6 +1174,9 @@ Possible causes:
 Possible future improvements:
 
 - full undo / rollback interface;
+- history deduplication and history cleanup tools;
+- explicit Bayes training dashboard;
+- training statistics per category;
 - drag-and-drop directory selection;
 - richer preview tree;
 - extension-aware sorting rules;
