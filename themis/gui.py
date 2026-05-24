@@ -5,6 +5,8 @@ from pathlib import Path
 from .scanner import (
     build_plan,
     apply_plan,
+    write_csv,
+    read_csv,
     known_categories,
     safe_label,
     destination_for,
@@ -193,12 +195,14 @@ class ThemisApp(tk.Tk):
 
         controls=ttk.Frame(bottom)
         controls.grid(row=0,column=0,sticky='ew')
-        controls.columnconfigure(4, weight=1)
+        controls.columnconfigure(6, weight=1)
         ttk.Button(controls,text='Select all',command=self.select_all_rows).grid(row=0,column=0,padx=(0,6),pady=2,sticky='w')
         ttk.Button(controls,text='Select none',command=self.select_no_rows).grid(row=0,column=1,padx=(0,6),pady=2,sticky='w')
         ttk.Button(controls,text='Toggle move',command=self.toggle_selected_flag).grid(row=0,column=2,padx=(0,6),pady=2,sticky='w')
         ttk.Button(controls,text='Edit category',command=self.edit_selected_category).grid(row=0,column=3,padx=(0,6),pady=2,sticky='w')
-        ttk.Button(controls,text='Move selected files',command=self.apply).grid(row=0,column=5,padx=(6,0),pady=2,sticky='e')
+        ttk.Button(controls,text='Export plan',command=self.export_plan).grid(row=0,column=4,padx=(0,6),pady=2,sticky='w')
+        ttk.Button(controls,text='Import plan',command=self.import_plan).grid(row=0,column=5,padx=(0,6),pady=2,sticky='w')
+        ttk.Button(controls,text='Move selected files',command=self.apply).grid(row=0,column=7,padx=(6,0),pady=2,sticky='e')
 
         status_label=ttk.Label(bottom,textvariable=self.status,anchor='w',justify='left',wraplength=1000)
         status_label.grid(row=1,column=0,sticky='ew',pady=(4,0))
@@ -210,6 +214,8 @@ class ThemisApp(tk.Tk):
         self.bind('<Return>',lambda e:(self.edit_selected_category(), 'break'))
         self.bind('<Control-r>',lambda e:(self.analyze(), 'break'))
         self.bind('<Control-s>',lambda e:(self.apply(), 'break'))
+        self.bind('<Control-e>',lambda e:(self.export_plan(), 'break'))
+        self.bind('<Control-o>',lambda e:(self.import_plan(), 'break'))
 
     def selected_indices(self):
         return [int(i) for i in self.tree.selection()]
@@ -286,6 +292,47 @@ class ThemisApp(tk.Tk):
             self.tree.insert('', 'end', iid=str(i), values=values)
         for iid in selected:
             if self.tree.exists(iid): self.tree.selection_add(iid)
+
+    def export_plan(self):
+        if not self.plan:
+            messagebox.showinfo('Themis','No plan to export. Analyze files or import a plan first.')
+            return
+        path=filedialog.asksaveasfilename(
+            title='Export sorting plan',
+            defaultextension='.csv',
+            filetypes=[('CSV plan','*.csv'),('All files','*.*')],
+            initialfile='themis_plan.csv'
+        )
+        if not path:
+            return
+        try:
+            write_csv(self.plan,path)
+        except Exception as exc:
+            messagebox.showerror('Themis',f'Could not export the plan:\n{exc}')
+            return
+        self.status.set(f'Plan exported: {path}')
+        messagebox.showinfo('Themis','Plan exported successfully.')
+
+    def import_plan(self):
+        path=filedialog.askopenfilename(
+            title='Import sorting plan',
+            filetypes=[('CSV plan','*.csv'),('All files','*.*')]
+        )
+        if not path:
+            return
+        try:
+            self.plan=read_csv(path)
+        except Exception as exc:
+            messagebox.showerror('Themis',f'Could not import the plan:\n{exc}')
+            return
+        self.categories=known_categories(self.target.get() or None,self.directories)
+        for p in self.plan:
+            if p.category not in self.categories:
+                self.categories.append(p.category)
+        self.categories=sorted(set(self.categories), key=str.lower)
+        self.category_combo.configure(values=self.categories)
+        self.reload_tree()
+        self.status.set(f'Plan imported: {len(self.plan)} file(s) from {path}')
 
     def sort_by(self,col):
         self.sort_reverse = not self.sort_reverse if self.sort_column==col else False

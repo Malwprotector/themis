@@ -34,7 +34,7 @@ def _print_plan_summary(plan):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog='themis',
-        description='Themis 2.1 - guided file sorting assistant using LDA first, then Bayes after approved training history.'
+        description='THEMIS 2.4'
     )
     sub = parser.add_subparsers(dest='cmd')
 
