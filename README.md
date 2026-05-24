@@ -679,26 +679,6 @@ Témis also comes with a version written entirely in C++, offering better perfor
 ```bash
 g++ themis.cpp -o themis-cpp -std=c++17
 ./themis-cpp
-THÉMIS 2.4
-
-Source folders:
-Target: default
-Plan rows: 0
-Learn from target: yes | Train Bayes after moves: yes
-Bayes memory: ~/themis_bayes_memory.jsonl
-
-1 Add source folder
-2 Add already sorted training folder
-3 Clear source folders
-4 Set destination / existing sorted folder
-5 Settings
-6 Analyze / build plan
-7 Review/edit plan
-8 Learned categories
-9 Apply selected moves
-10 Exit
-
-Choice:
 ```
 
 ## Python CLI Usage Tutorial
