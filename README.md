@@ -4,21 +4,28 @@
 
 <td style="vertical-align: top; font-size:12px;">
 <pre style="margin:0; white-space: pre-wrap;">
-$ python3 -m themis --help
-usage: themis [-h] {gui,scan,apply,categories} ...
+$ ./themissoft
 
-Themis 2.1
+THEMIS 2.4
 
-positional arguments:
-  {gui,scan,apply,categories}
-    gui              open the graphical interface
-    scan             scan folders and create plan
-    apply            apply CSV and update training
-    categories       list categories already learned
+Source folders:
+Target: default
+Plan rows: 6354
+Learn from target: yes | Train Bayes after moves: yes
+Bayes memory: ~/themis_bayes_memory.jsonl
 
-options:
-  -h, --help         show this help message and exit
-$
+1 Add source folder
+2 Add already sorted training folder
+3 Clear source folders
+4 Set destination / existing sorted folder
+5 Settings
+6 Analyze / build plan
+7 Review/edit plan
+8 Learned categories
+9 Apply selected moves
+10 Exit
+
+$ Choice:
 </pre>
 </td>
 
