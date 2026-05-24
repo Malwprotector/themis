@@ -52,7 +52,7 @@ https://github.com/user-attachments/assets/4b41e0ab-2acd-4270-9455-aa58cd244ce1
 - [Workflow](#core-workflow)
 - [Install](#installation-from-source)
 - [Usage](#gui-usage-tutorial)
-- [C++ Interface](#c++-usage-tutorial)
+- [C++ Interface](#c-usage-tutorial)
 - [CLI](#python-cli-usage-tutorial)
 - [Build](#build-and-compile-guide)
 - [License](#license)
