@@ -672,7 +672,7 @@ Ctrl+S     apply moves
 
 ## C++ Usage Tutorial
 
-Thémis can also be launched from a terminal based interface, C++ written algorithm, offering better performance than the Python. To run this version, you will need to compile the programme and then run it. Its options are the same as in the GUI, but are entered directly into the terminal.
+Thémis can also be launched from a terminal based interface, C++ written algorithm, offering better performance than Python. To run this version, you will need to compile the programme and then run it. Its options are the same as in the GUI, but are entered directly into the terminal.
 
 ### Build and run (Linux)
 
