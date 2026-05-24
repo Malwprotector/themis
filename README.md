@@ -33,11 +33,11 @@ Themis is a cross-platform Python application that helps users reorganize files 
 
 The project originally worked as an **LDA-only topic-based sorter**. The current version keeps LDA as the first discovery layer (1.0), but adds a **local Naive Bayes learning layer** (2.1). This means Themis can now improve over time from the categories approved by the user, without uploading files, file names, or training data to any external service.
 
->2.4 update note : This improves both the graphical interface and the terminal/C++ workflow with a stronger, more persistent Bayes training system. Bayes now keeps a local memory file, themis_bayes_memory.jsonl, next to the launcher or executable, and can be trained from an already sorted folder without moving any existing files. The destination folder can also be used as a training source during analysis, making it easier to add unsorted files into an existing sorted repository. The move history is now always written to themis_history.jsonl, while Bayes training can be enabled or skipped independently for each move. The interface also adds clearer controls, safer text wrapping, and dedicated Import plan / Export plan buttons for CSV plans. The CLI and C++ TUI were updated to match the same 2.4 behavior, including optional Bayes training, persistent memory, sorted-folder training import, and consistent plan import/export support.
-
 https://github.com/user-attachments/assets/4b41e0ab-2acd-4270-9455-aa58cd244ce1
 
 <!--https://github.com/user-attachments/assets/44b5669c-3250-43cf-8b42-4c517721a8e5-->
+>2.4 update note : This improves both the graphical interface and the terminal/C++ workflow with a stronger, more persistent Bayes training system. Bayes now keeps a local memory file, themis_bayes_memory.jsonl, next to the launcher or executable, and can be trained from an already sorted folder without moving any existing files. The destination folder can also be used as a training source during analysis, making it easier to add unsorted files into an existing sorted repository. The move history is now always written to themis_history.jsonl, while Bayes training can be enabled or skipped independently for each move. The interface also adds clearer controls, safer text wrapping, and dedicated Import plan / Export plan buttons for CSV plans. The CLI and C++ TUI were updated to match the same 2.4 behavior, including optional Bayes training, persistent memory, sorted-folder training import, and consistent plan import/export support.
+
 ## Contents
 
 - [Status](#project-status-at-a-glance)
