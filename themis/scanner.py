@@ -1,5 +1,5 @@
 # scanner.py
-import re, csv, json, shutil, datetime, math
+import re, csv, json, shutil, datetime, math, sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from collections import Counter, defaultdict
@@ -8,6 +8,16 @@ from .lda_model import LDA
 BASIC_STOPWORDS=set("a an and are as at be by de des du le la les un une et ou of on for from in into is it its no not the to with sans copy copie final new old version draft tmp temp img dsc scan document file fichier".split())
 TOKEN_RE=re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]+")
 HISTORY_FILE='themis_history.jsonl'
+BAYES_MEMORY_FILE='themis_bayes_memory.jsonl'
+
+def execution_dir():
+    try:
+        return Path(sys.argv[0]).expanduser().resolve().parent
+    except Exception:
+        return Path.cwd().resolve()
+
+def bayes_memory_path():
+    return execution_dir()/BAYES_MEMORY_FILE
 
 @dataclass
 class FileProposal:
@@ -114,8 +124,10 @@ def destination_for(target, category, filename, prefix=None):
     folder=f"{prefix:02d}_{category}" if prefix is not None else category
     return unique_path(Path(target)/folder/filename)
 
-def load_history(target_root=None, roots=None):
+def load_history(target_root=None, roots=None, include_local_memory=True):
     candidates=[]
+    if include_local_memory:
+        candidates.append(bayes_memory_path())
     if target_root:
         candidates.append(Path(target_root).expanduser().resolve()/HISTORY_FILE)
     if roots:
@@ -134,13 +146,13 @@ def load_history(target_root=None, roots=None):
 
 def known_categories(target_root=None, roots=None):
     cats=set()
-    for row in load_history(target_root, roots):
+    for row in load_history(target_root, roots, include_local_memory=True):
         cat=row.get('category') or row.get('bayes_label') or infer_label_from_destination(row.get('destination',''))
         if cat: cats.add(safe_label(cat))
     return sorted(cats, key=str.lower)
 
 def train_bayes_from_history(target_root=None, roots=None, min_examples=3):
-    rows=load_history(target_root, roots)
+    rows=load_history(target_root, roots, include_local_memory=True)
     docs=[]; labels=[]
     for r in rows:
         src=r.get('source') or r.get('destination') or ''
@@ -153,12 +165,76 @@ def train_bayes_from_history(target_root=None, roots=None, min_examples=3):
         return None, len(labels), len(set(labels))
     return MultinomialNaiveBayes().fit(docs,labels), len(labels), len(set(labels))
 
+def iter_sorted_repository_examples(repository_root, recursive=True, include_hidden=False):
+    """Yield training examples from a folder that is already sorted.
+    The first folder below repository_root is treated as the category.
+    Files are only read as examples; they are never moved.
+    """
+    root=Path(repository_root).expanduser().resolve()
+    if not root.exists():
+        return
+    for p in iter_files([root], recursive=recursive, include_hidden=include_hidden):
+        if p.name in (HISTORY_FILE, BAYES_MEMORY_FILE):
+            continue
+        try:
+            rel=p.relative_to(root)
+        except ValueError:
+            continue
+        if len(rel.parts) < 2:
+            continue
+        category=safe_label(rel.parts[0])
+        toks=tokenize_filename(p) or [p.suffix.lower().lstrip('.') or 'misc']
+        if toks and category:
+            yield {
+                'source': str(p),
+                'destination': str(p),
+                'category': category,
+                'bayes_label': category,
+                'training_origin': 'sorted_repository',
+                'trained_at': datetime.datetime.now().isoformat(timespec='seconds')
+            }
+
+def append_local_bayes_memory(records):
+    records=list(records)
+    if not records:
+        return 0
+    path=bayes_memory_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing=set()
+    if path.exists():
+        with open(path,encoding='utf-8') as f:
+            for line in f:
+                try:
+                    r=json.loads(line)
+                    existing.add((r.get('source'), r.get('destination'), safe_label(r.get('category') or r.get('bayes_label') or '')))
+                except Exception:
+                    pass
+    added=0
+    with open(path,'a',encoding='utf-8') as f:
+        for rec in records:
+            rec=dict(rec)
+            cat=safe_label(rec.get('category') or rec.get('bayes_label') or infer_label_from_destination(rec.get('destination','')))
+            rec['category']=cat; rec['bayes_label']=cat
+            key=(rec.get('source'), rec.get('destination'), cat)
+            if key in existing:
+                continue
+            f.write(json.dumps(rec,ensure_ascii=False)+chr(10))
+            existing.add(key); added+=1
+    return added
+
+def import_sorted_repository(repository_root, recursive=True, include_hidden=False):
+    """Add an already sorted local repository to Bayes' persistent local memory."""
+    return append_local_bayes_memory(iter_sorted_repository_examples(repository_root, recursive, include_hidden))
+
 def build_plan(roots, target_root=None, topics=8, iterations=350, recursive=True, include_hidden=False,
-               min_confidence=0.0, bayes_threshold=0.68, min_bayes_examples=3):
+               min_confidence=0.0, bayes_threshold=0.68, min_bayes_examples=3,
+               learn_from_target_repository=True):
     files=list(iter_files(roots, recursive, include_hidden))
     if not files: return []
     docs=[tokenize_filename(p) or [p.suffix.lower().lstrip('.') or 'misc'] for p in files]
     target=Path(target_root).expanduser().resolve() if target_root else Path(roots[0]).expanduser().resolve()/'Themis_Sorted'
+    if learn_from_target_repository and target.exists():
+        import_sorted_repository(target, recursive=recursive, include_hidden=include_hidden)
 
     lda=LDA(min(max(1,int(topics)),len(files)), iterations=iterations).fit(docs)
     bayes, n_examples, n_labels = train_bayes_from_history(target, roots, min_bayes_examples)
@@ -209,7 +285,7 @@ def read_csv(path):
             out.append(FileProposal(**r))
     return out
 
-def apply_plan(plan, history_root=None):
+def apply_plan(plan, history_root=None, train_bayes=True):
     done=[]
     for item in plan:
         if not item.selected: continue
@@ -220,9 +296,10 @@ def apply_plan(plan, history_root=None):
         shutil.move(str(src), str(dst))
         rec=asdict(item); rec['destination']=str(dst); rec['category']=item.category
         rec['applied_at']=datetime.datetime.now().isoformat(timespec='seconds'); done.append(rec)
-    if done:
+    if done and train_bayes:
         root=Path(history_root).expanduser().resolve() if history_root else Path(done[0]['destination']).parents[1]
         root.mkdir(parents=True, exist_ok=True)
         with open(root/HISTORY_FILE,'a',encoding='utf-8') as f:
             for rec in done: f.write(json.dumps(rec,ensure_ascii=False)+chr(10))
+        append_local_bayes_memory(done)
     return done

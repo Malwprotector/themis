@@ -95,3 +95,5 @@ themis_seed_plan.csv
 themis_tree_inventory.csv
 create
 themissoft
+__pycache__/
+themis_bayes_memory.jsonl
