@@ -34,7 +34,7 @@ $ Choice:
 
 # Thémis
 
-**Private, local, low-resource file sorting assistant powered by a self-learning local algorithm.**
+**Private, secure, low-resource file sorting assistant powered by a self-learning local algorithm.**
 
 Themis is a cross-platform Python application that helps users reorganize files on their own computer. It analyzes file names, proposes a new folder structure, shows the proposed changes before anything is moved, and lets the user edit categories before applying the plan.
 
