@@ -52,7 +52,8 @@ https://github.com/user-attachments/assets/4b41e0ab-2acd-4270-9455-aa58cd244ce1
 - [Workflow](#core-workflow)
 - [Install](#installation-from-source)
 - [Usage](#gui-usage-tutorial)
-- [CLI](#cli-usage-tutorial)
+- [C++ Interface](#c++-usage-tutorial)
+- [CLI](#python-cli-usage-tutorial)
 - [Build](#build-and-compile-guide)
 - [License](#license)
 
@@ -669,7 +670,18 @@ Ctrl+S     apply moves
 
 ---
 
-## CLI Usage Tutorial
+## C++ Usage Tutorial
+
+Témis also comes with a version written entirely in C++, offering better performance than the Python version. To run this version, you will need to compile the programme and then run it. Its options are the same as in the GUI, but are entered directly into the terminal.
+
+### Build and run (Linux)
+
+```bash
+g++ themis.cpp -o themis-cpp -std=c++17
+./themis-cpp
+```
+
+## Python CLI Usage Tutorial
 
 ### Show Help
 
