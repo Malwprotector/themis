@@ -4,9 +4,9 @@
 
 <td style="vertical-align: top; font-size:12px;">
 <pre style="margin:0; white-space: pre-wrap;">
-$ ./themissoft
+$ ./themis
 
-THEMIS 2.4
+THÉMIS 2.4
 
 Source folders:
 Target: default
