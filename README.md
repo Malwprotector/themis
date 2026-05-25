@@ -36,9 +36,9 @@ $ Choice:
 
 **Private, secure, low-resource file sorting assistant powered by a self-learning local algorithm.**
 
-Themis is a cross-platform Python application that helps users reorganize files on their own computer. It analyzes file names, proposes a new folder structure, shows the proposed changes before anything is moved, and lets the user edit categories before applying the plan.
+Themis is a cross-platform software that helps users reorganize files on their own computer. It analyzes file names, proposes a new folder structure, shows the proposed changes before anything is moved, and lets the user edit categories before applying the plan.
 
-The project originally worked as an **LDA-only topic-based sorter**. The current version keeps LDA as the first discovery layer (1.0), but adds a **local Naive Bayes learning layer** (2.1). This means Themis can now improve over time from the categories approved by the user, without uploading files, file names, or training data to any external service.
+The project originally worked as an **LDA-only topic-based sorter**. The current version keeps LDA as the first discovery layer (1.0), but adds a **local Naive Bayes learning layer** (2.1). This means Themis can now improve over time from the categories approved by the user, without uploading files, file names, or training data to any external service. 
 
 https://github.com/user-attachments/assets/4b41e0ab-2acd-4270-9455-aa58cd244ce1
 
